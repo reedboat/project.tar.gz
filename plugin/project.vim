@@ -21,7 +21,13 @@ function! s:Project(filename) " <<<
         let filename=bufname(g:proj_running)
     else
         if strlen(a:filename) == 0
-            let filename ='~/.vimprojects'      " Default project filename
+            if filereadable(".vimproject")
+                let filename ='.vimproject'      " Default local project filename
+            elseif exists("g:proj_file") && strlen(g:proj_file) > 0
+                let filename = g:proj_file      " Global project file variable
+            else
+                let filename ='~/.vimprojects'  " Default project filename
+            endif
         else
             let filename = a:filename
         endif
@@ -126,6 +132,7 @@ function! s:Project(filename) " <<<
         highlight def link projectWhiteError   Error
         highlight def link projectFlagsError   Error
         highlight def link projectFilterError  Error
+        highlight def link ProjectFileName     Search
     endif ">>>
     " s:SortR(start, end) <<<
     " Sort lines.  SortR() is called recursively.
@@ -310,6 +317,7 @@ function! s:Project(filename) " <<<
     " s:OpenEntry(line, precmd, editcmd) <<<
     "   Get the filename under the cursor, and open a window with it.
     function! s:OpenEntry(line, precmd, editcmd, dir)
+        call s:Tlist_Window_Highlight_Line(a:line)
         silent exec a:precmd
         if (a:editcmd[0] != '')
             if a:dir
@@ -516,6 +524,18 @@ function! s:Project(filename) " <<<
         if (dir[strlen(dir)-1] == '/') || (dir[strlen(dir)-1] == '\\')
             let dir=strpart(dir, 0, strlen(dir)-1) " Remove trailing / or \
         endif
+
+        "todo fix windows path
+        if (dir[0] != '/')
+            let curdir = substitute(getcwd(), $HOME, "~", "g")
+            if (strpart(dir, 0, 2) == './') || (dir == '.')
+                let dir= substitute(dir, '.', curdir, "")
+            else
+                let dir= curdir . '/' .  dir
+            endif
+        endif
+
+
         let dir = substitute(dir, '^\~', $HOME, 'g')
         if (foldlev > 0)
             let parent_directive=s:RecursivelyConstructDirectives(line)
@@ -1171,6 +1191,7 @@ function! s:Project(filename) " <<<
         endfunction
         " >>>
 
+
         " Mappings <<<
         nnoremap <buffer> <silent> <Return>   \|:call <SID>DoFoldOrOpenEntry('', 'e')<CR>
         nnoremap <buffer> <silent> <S-Return> \|:call <SID>DoFoldOrOpenEntry('', 'sp')<CR>
@@ -1261,6 +1282,14 @@ function! s:Project(filename) " <<<
         setlocal nobuflisted
     endif
 endfunction " >>>
+
+function! s:Tlist_Window_Highlight_Line(line)
+    " Clear previously selected name
+    match none
+    " Highlight the current line
+    let pat = '/\%' . a:line . 'l\s\+\zs.*/'
+    exe 'match ProjectFileName ' . pat
+endfunction
 
 if exists(':Project') != 2
     command -nargs=? -complete=file Project call <SID>Project('<args>')
